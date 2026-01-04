@@ -1,0 +1,13 @@
+// Title: Suspicious OAuth App Consent / Permission Grant (Entra ID / Azure AD)
+// Purpose: Detect unusual or risky OAuth consent events that may indicate token abuse,
+//          malicious app registration, or compromised admin consent.
+// Data sources (common): AzureActiveDirectoryAuditLogs, AADServicePrincipalSignInLogs, SigninLogs
+// Notes: Table names vary by tenant configuration. Adjust as needed.
+// Tuning: Exclude known approved apps and admin accounts after initial review.
+
+// Example 1: Audit events related to application consent (most common starting point)
+AzureActiveDirectoryAuditLogs
+| where TimeGenerated > ago(24h)
+| where OperationName has_any ("Consent", "Add delegated permission grant", "Add app role assignment", "Add OAuth2PermissionGrant")
+| project TimeGenerated, OperationName, InitiatedBy, TargetResources, Result
+| order by TimeGenerated desc
