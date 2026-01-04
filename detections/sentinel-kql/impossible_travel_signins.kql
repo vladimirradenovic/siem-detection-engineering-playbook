@@ -1,0 +1,27 @@
+// Title: Impossible Travel / High Geo-Velocity Sign-ins (Entra ID / Azure AD)
+// Purpose: Detect user sign-ins from distant geolocations within an unrealistic time window,
+//          indicating potential credential theft, session hijack, or token replay.
+// Data sources: SigninLogs (most common). Some tenants may use AADNonInteractiveUserSignInLogs.
+// Tuning: Exclude known VPN/egress IPs and trusted locations; focus on successful sign-ins.
+
+let lookback = 24h;
+let window = 2h;
+let min_km = 1500.0;  // conservative distance threshold
+SigninLogs
+| where TimeGenerated > ago(lookback)
+| where ResultType == 0  // success
+| where isnotempty(UserPrincipalName)
+| project TimeGenerated, UserPrincipalName, IPAddress, Location, AppDisplayName, DeviceDetail, ClientAppUsed
+| extend city = tostring(Location.city), state = tostring(Location.state), country = tostring(Location.countryOrRegion)
+| extend geo = strcat(country, "/", state, "/", city)
+| order by UserPrincipalName asc, TimeGenerated asc
+| serialize
+| extend prev_time = prev(TimeGenerated), prev_user = prev(UserPrincipalName), prev_geo = prev(geo), prev_ip = prev(IPAddress)
+| where UserPrincipalName == prev_user
+| where TimeGenerated - prev_time <= window
+| where geo != prev_geo
+| project UserPrincipalName, prev_time, TimeGenerated, prev_geo, geo, prev_ip, IPAddress, AppDisplayName, ClientAppUsed, DeviceDetail
+// NOTE: This is a heuristic without true lat/long distance. In production, combine with:
+// - Identity Protection risk events (if available)
+// - Trusted locations / named locations
+// - Conditional Access / MFA prompts

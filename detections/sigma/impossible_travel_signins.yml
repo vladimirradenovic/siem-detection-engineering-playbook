@@ -1,0 +1,22 @@
+title: Impossible Travel / High Geo-Velocity Sign-ins
+id: 4f0a6e1a-identity-impossible-travel-0001
+status: experimental
+description: Detects user sign-ins from different geolocations within a short time window that may indicate credential theft or token replay.
+author: Vladimir Radenović
+date: 2026/01/04
+references:
+  - https://attack.mitre.org/techniques/T1078/
+tags:
+  - attack.t1078
+logsource:
+  category: authentication
+  product: azuread
+detection:
+  selection_success:
+    Status: "Success"
+  condition: selection_success
+falsepositives:
+  - Corporate VPN / roaming egress IP changes
+  - Mobile networks switching carriers/regions
+  - Travelers and remote workers
+level: medium
