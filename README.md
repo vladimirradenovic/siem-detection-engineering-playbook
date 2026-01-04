@@ -1,2 +1,8 @@
 # siem-detection-engineering-playbook
-SIEM Detection Engineering &amp; Alert Tuning Playbook
+siem-detection-engineering-playbook/
+├── README.md
+├── detections/
+│   ├── sigma/
+│   └── sentinel-kql/
+├── tuning-notes/
+└── threat-model/
