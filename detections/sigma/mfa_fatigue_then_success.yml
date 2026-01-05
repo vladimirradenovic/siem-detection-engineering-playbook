@@ -1,0 +1,22 @@
+title: MFA Fatigue Pattern - Multiple Failures Followed by Success
+id: 9b7d2f2c-identity-mfa-fatigue-0001
+status: experimental
+description: Detects repeated authentication failures followed by a success within a short time window, consistent with MFA fatigue / push spamming behavior.
+author: Vladimir Radenović
+date: 2026/01/04
+references:
+  - https://attack.mitre.org/techniques/T1621/
+tags:
+  - attack.t1621
+logsource:
+  category: authentication
+  product: azuread
+detection:
+  selection:
+    EventType: "SignIn"
+  condition: selection
+falsepositives:
+  - User repeatedly entering wrong password then correcting it
+  - Legitimate MFA issues causing retries
+  - Noisy applications during login troubleshooting
+level: medium

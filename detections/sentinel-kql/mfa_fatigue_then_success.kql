@@ -1,0 +1,26 @@
+// Title: MFA Fatigue Pattern (Multiple MFA failures followed by success)
+// Purpose: Detect potential MFA push spamming/fatigue where an attacker triggers repeated MFA prompts
+//          and eventually obtains a successful authentication.
+// Data sources: SigninLogs (and optionally AADNonInteractiveUserSignInLogs)
+// Tuning: Exclude known noisy apps, trusted locations, and expected automation accounts.
+
+let lookback = 24h;
+let window = 30m;
+let failure_threshold = 5;
+
+SigninLogs
+| where TimeGenerated > ago(lookback)
+| where isnotempty(UserPrincipalName)
+| project TimeGenerated, UserPrincipalName, ResultType, ResultDescription, IPAddress, AppDisplayName, ClientAppUsed, Location, DeviceDetail
+| extend Outcome = iff(ResultType == 0, "Success", "Failure")
+| summarize
+    failures = countif(Outcome == "Failure"),
+    successes = countif(Outcome == "Success"),
+    firstSeen = min(TimeGenerated),
+    lastSeen = max(TimeGenerated),
+    apps = make_set(AppDisplayName, 10),
+    ips = make_set(IPAddress, 10)
+  by UserPrincipalName, bin(TimeGenerated, window)
+| where failures >= failure_threshold and successes >= 1
+| project UserPrincipalName, firstSeen, lastSeen, failures, successes, apps, ips
+| order by failures desc
