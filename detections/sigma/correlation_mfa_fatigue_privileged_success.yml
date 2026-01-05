@@ -1,0 +1,23 @@
+title: Correlation - MFA Fatigue Pattern with Success for Privileged Users
+id: 5f1e9c30-identity-correlation-mfa-privileged-0001
+status: experimental
+description: Correlates repeated authentication failures followed by a success, scoped to privileged users, consistent with MFA fatigue/push spamming leading to takeover.
+author: Vladimir Radenović
+date: 2026/01/05
+references:
+  - https://attack.mitre.org/techniques/T1621/
+  - https://attack.mitre.org/techniques/T1078/
+tags:
+  - attack.t1621
+  - attack.t1078
+logsource:
+  category: authentication
+  product: azuread
+detection:
+  selection:
+    EventType: "SignIn"
+  condition: selection
+falsepositives:
+  - Privileged users troubleshooting access
+  - MFA delivery issues causing retries
+level: high

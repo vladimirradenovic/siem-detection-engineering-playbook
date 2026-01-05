@@ -1,0 +1,34 @@
+// Title: Correlated MFA Fatigue + Success for Privileged Users (Entra ID / Azure AD)
+// Purpose: Identify high-confidence MFA fatigue / push spamming patterns that result in a successful sign-in,
+//          scoped to privileged users for higher fidelity.
+// Data sources: SigninLogs. Privileged list is static here; in production pull from IdentityInfo or a watchlist.
+// Tuning: Adjust failure threshold and window based on tenant baseline; exclude trusted locations/VPN egress.
+
+let lookback = 24h;
+let window = 30m;
+let failure_threshold = 5;
+
+// PRIVILEGED USERS LIST (edit this list as examples; keep 2–5 entries max for portfolio)
+let PrivilegedUsers = datatable(UserPrincipalName:string)
+[
+  "admin@example.com",
+  "security.admin@example.com"
+];
+
+SigninLogs
+| where TimeGenerated > ago(lookback)
+| where UserPrincipalName in (PrivilegedUsers)
+| project TimeGenerated, UserPrincipalName, ResultType, ResultDescription, IPAddress, AppDisplayName, ClientAppUsed, Location, DeviceDetail
+| extend Outcome = iff(ResultType == 0, "Success", "Failure")
+| summarize
+    failures = countif(Outcome == "Failure"),
+    successes = countif(Outcome == "Success"),
+    firstSeen = min(TimeGenerated),
+    lastSeen = max(TimeGenerated),
+    apps = make_set(AppDisplayName, 10),
+    ips = make_set(IPAddress, 10)
+  by UserPrincipalName, bin(TimeGenerated, window)
+| where failures >= failure_threshold and successes >= 1
+| extend Severity = case(failures >= 10, "High", failures between (7 .. 9), "Medium", "Medium")
+| project UserPrincipalName, firstSeen, lastSeen, failures, successes, Severity, apps, ips
+| order by failures desc
