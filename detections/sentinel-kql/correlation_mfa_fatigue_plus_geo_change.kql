@@ -1,0 +1,61 @@
+// Title: Correlated MFA Fatigue + Geo Change (Any User) with Severity Scoring
+// Purpose: Detect likely account compromise by correlating MFA fatigue patterns with a rapid geo change.
+// Data source: SigninLogs
+// Tuning: Exclude trusted locations/VPN egress IPs, adjust thresholds by tenant baseline.
+// Notes: This is a heuristic correlation suitable for portfolio/demo; production should enrich with
+// Conditional Access outcomes, Identity Protection risk, and trusted named locations.
+
+let lookback = 24h;
+let window = 30m;
+let failure_threshold = 5;
+
+// 1) Identify MFA fatigue candidates: failures spike then success within a small time bin
+let MfaFatigue =
+SigninLogs
+| where TimeGenerated > ago(lookback)
+| where isnotempty(UserPrincipalName)
+| extend Outcome = iff(ResultType == 0, "Success", "Failure")
+| summarize
+    failures = countif(Outcome == "Failure"),
+    successes = countif(Outcome == "Success"),
+    firstSeen = min(TimeGenerated),
+    lastSeen = max(TimeGenerated),
+    ips = make_set(IPAddress, 10),
+    apps = make_set(AppDisplayName, 10)
+  by UserPrincipalName, bin(TimeGenerated, window)
+| where failures >= failure_threshold and successes >= 1
+| project UserPrincipalName, fatigueBin=TimeGenerated, firstSeen, lastSeen, failures, successes, ips, apps;
+
+// 2) Identify geo-change candidates: same user signs in from different geo within a short window
+let GeoChange =
+SigninLogs
+| where TimeGenerated > ago(lookback)
+| where ResultType == 0
+| where isnotempty(UserPrincipalName)
+| extend city = tostring(Location.city), state = tostring(Location.state), country = tostring(Location.countryOrRegion)
+| extend geo = strcat(country, "/", state, "/", city)
+| project TimeGenerated, UserPrincipalName, IPAddress, geo, AppDisplayName, ClientAppUsed, DeviceDetail
+| order by UserPrincipalName asc, TimeGenerated asc
+| serialize
+| extend prev_time = prev(TimeGenerated), prev_user = prev(UserPrincipalName), prev_geo = prev(geo), prev_ip = prev(IPAddress)
+| where UserPrincipalName == prev_user
+| where TimeGenerated - prev_time <= window
+| where geo != prev_geo
+| project UserPrincipalName, geoBin=TimeGenerated, prev_time, TimeGenerated, prev_geo, geo, prev_ip, IPAddress, AppDisplayName, ClientAppUsed, DeviceDetail;
+
+// 3) Correlate MFA fatigue with geo change close in time
+MfaFatigue
+| join kind=inner (
+    GeoChange
+) on UserPrincipalName
+| where abs(datetime_diff("minute", fatigueBin, geoBin)) <= 60
+| extend SensitiveApp = iff(set_has_element(apps, "Azure Portal") or set_has_element(apps, "Microsoft 365 admin center"), true, false)
+// Severity scoring (heuristic)
+| extend Severity =
+    case(
+        failures >= 10 or SensitiveApp == true, "High",
+        failures between (7 .. 9), "Medium",
+        "Medium"
+    )
+| project UserPrincipalName, Severity, failures, successes, firstSeen, lastSeen, prev_geo, geo, prev_ip, IPAddress, apps, ClientAppUsed
+| order by Severity asc, failures desc

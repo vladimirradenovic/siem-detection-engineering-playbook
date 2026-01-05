@@ -1,0 +1,23 @@
+title: Correlation - MFA Fatigue Followed by Geo Change
+id: 2a3c1d51-identity-correlation-mfa-geo-0001
+status: experimental
+description: Correlates repeated authentication failures followed by success with rapid geo change events, indicating likely account compromise.
+author: Vladimir Radenović
+date: 2026/01/05
+references:
+  - https://attack.mitre.org/techniques/T1621/
+  - https://attack.mitre.org/techniques/T1078/
+tags:
+  - attack.t1621
+  - attack.t1078
+logsource:
+  category: authentication
+  product: azuread
+detection:
+  selection:
+    EventType: "SignIn"
+  condition: selection
+falsepositives:
+  - VPN egress changes or roaming networks
+  - Frequent travelers
+level: high
