@@ -13,3 +13,20 @@ This repository demonstrates practical detection engineering, alert tuning, and 
 - Not a lab
 - Not a SOC analyst exercise
 - Not vendor-rule copy/paste
+
+
+## How This Is Used (Practical Example)
+
+These detections are designed to be deployed in a SIEM such as Microsoft Sentinel.
+
+Typical usage flow:
+1. Deploy base detections (KQL or Sigma) with conservative thresholds.
+2. Review early alerts to understand tenant baseline behavior.
+3. Apply tuning notes:
+   - trusted locations and VPN exclusions
+   - threshold adjustments
+   - privileged-user scoping
+4. Enable correlation detections to raise confidence and severity.
+5. Trigger investigation and incident response workflows only on high-signal alerts.
+
+The focus is on reducing alert fatigue and producing actionable security signals rather than high alert volume.
